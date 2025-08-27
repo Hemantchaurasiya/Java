@@ -1,358 +1,647 @@
-# Complete Spring Data JPA Mastery Roadmap
+# Spring Data JPA Phase 1: Foundation & Prerequisites
 
-## Phase 1: Foundation & Prerequisites (Week 1-2)
+## 1.1 Core Java Concepts Review
 
-### 1.1 Core Java Concepts Review
-- **Object-Oriented Programming**: Classes, Objects, Inheritance, Polymorphism, Encapsulation
-- **Collections Framework**: List, Set, Map interfaces and implementations
-- **Generics**: Understanding generic types and wildcards
-- **Annotations**: Built-in annotations and custom annotation creation
-- **Reflection API**: Understanding how frameworks use reflection
-- **Lambda Expressions & Stream API**: Functional programming concepts
-- **Exception Handling**: Checked vs unchecked exceptions
+### Object-Oriented Programming
 
-### 1.2 Database Fundamentals
-- **SQL Basics**: SELECT, INSERT, UPDATE, DELETE operations
-- **Advanced SQL**: JOINs (INNER, LEFT, RIGHT, FULL OUTER)
-- **Database Design**: Normalization, Primary Keys, Foreign Keys
-- **Indexes**: Understanding database indexing strategies
-- **Transactions**: ACID properties, isolation levels
-- **Database Schema**: DDL operations (CREATE, ALTER, DROP)
+Understanding OOP is crucial for Spring Data JPA as entities are classes that represent database tables.
 
-### 1.3 Spring Framework Basics
-- **Dependency Injection**: Constructor, Setter, Field injection
-- **Inversion of Control**: Understanding the Spring container
-- **Spring Boot Fundamentals**: Auto-configuration, Starters, Profiles
-- **Configuration**: @Configuration, @Bean, @Component annotations
-- **Spring Boot Application Structure**: Main class, application.properties/yml
+```java
+// Base entity class demonstrating inheritance
+public abstract class BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @CreatedDate
+    private LocalDateTime createdAt;
+    
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+    
+    // Encapsulation with getters and setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+}
 
-## Phase 2: JPA Fundamentals (Week 3-4)
+// Inheritance example - User entity extending BaseEntity
+@Entity
+@Table(name = "users")
+public class User extends BaseEntity {
+    @Column(unique = true, nullable = false)
+    private String email;
+    
+    private String firstName;
+    private String lastName;
+    
+    // Polymorphism - method overriding
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + getId() +
+                ", email='" + email + '\'' +
+                ", firstName='" + firstName + '\'' +
+                ", lastName='" + lastName + '\'' +
+                '}';
+    }
+    
+    // Constructor, getters, setters...
+    public User() {}
+    
+    public User(String email, String firstName, String lastName) {
+        this.email = email;
+        this.firstName = firstName;
+        this.lastName = lastName;
+    }
+}
+```
 
-### 2.1 JPA Specification Understanding
-- **What is JPA**: Java Persistence API overview
-- **JPA vs JDBC**: Understanding the differences and benefits
-- **JPA Implementations**: Hibernate, EclipseLink, OpenJPA
-- **Entity Lifecycle**: New, Managed, Detached, Removed states
-- **Persistence Context**: First-level cache and entity management
+### Collections Framework
 
-### 2.2 Entity Mapping Basics
-- **@Entity Annotation**: Creating JPA entities
-- **@Table Annotation**: Table mapping and naming strategies
-- **@Id and Primary Keys**: Simple primary keys
-- **@GeneratedValue**: AUTO, IDENTITY, SEQUENCE, TABLE strategies
-- **@Column Annotation**: Column mapping and constraints
-- **Basic Data Types**: String, Integer, Date, Boolean mapping
-- **@Temporal Annotation**: Date and Time mapping
-- **@Enumerated**: Enum mapping strategies (ORDINAL vs STRING)
-- **@Lob**: Large Object mapping (CLOB, BLOB)
+Collections are essential for managing entity relationships and query results.
 
-### 2.3 Entity Manager and Persistence Context
-- **EntityManager Interface**: Core JPA interface
-- **EntityManagerFactory**: Creating EntityManager instances
-- **Persistence Unit Configuration**: persistence.xml
-- **Transaction Management**: @Transactional annotation
-- **Entity Operations**: persist(), merge(), find(), remove()
-- **Query Execution**: createQuery(), createNativeQuery()
+```java
+@Entity
+public class Department {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    private String name;
+    
+    // List - ordered collection, allows duplicates
+    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL)
+    private List<Employee> employees = new ArrayList<>();
+    
+    // Set - no duplicates, useful for unique relationships
+    @ManyToMany
+    @JoinTable(
+        name = "department_skills",
+        joinColumns = @JoinColumn(name = "department_id"),
+        inverseJoinColumns = @JoinColumn(name = "skill_id")
+    )
+    private Set<Skill> requiredSkills = new HashSet<>();
+    
+    // Map - key-value pairs, useful for metadata
+    @ElementCollection
+    @CollectionTable(name = "department_metadata")
+    @MapKeyColumn(name = "property_name")
+    @Column(name = "property_value")
+    private Map<String, String> metadata = new HashMap<>();
+    
+    // Helper methods for bidirectional relationships
+    public void addEmployee(Employee employee) {
+        employees.add(employee);
+        employee.setDepartment(this);
+    }
+    
+    public void removeEmployee(Employee employee) {
+        employees.remove(employee);
+        employee.setDepartment(null);
+    }
+}
 
-## Phase 3: Spring Data JPA Core (Week 5-7)
+// Service class demonstrating collections usage
+@Service
+public class DepartmentService {
+    
+    public List<Employee> getEmployeesSortedByName(Department dept) {
+        return dept.getEmployees().stream()
+            .sorted(Comparator.comparing(Employee::getLastName))
+            .collect(Collectors.toList());
+    }
+    
+    public Set<String> getAllSkillNames(Department dept) {
+        return dept.getRequiredSkills().stream()
+            .map(Skill::getName)
+            .collect(Collectors.toSet());
+    }
+}
+```
 
-### 3.1 Spring Data JPA Setup
-- **Project Setup**: Maven/Gradle dependencies
-- **Database Configuration**: DataSource configuration
-- **JPA Configuration**: @EnableJpaRepositories
-- **Application Properties**: Database connection properties
-- **Multiple DataSources**: Configuring multiple databases
+### Generics
 
-### 3.2 Repository Pattern
-- **Repository Interface Hierarchy**: Repository, CrudRepository, PagingAndSortingRepository, JpaRepository
-- **Custom Repository Interfaces**: Extending base repositories
-- **Repository Implementation**: Understanding Spring Data magic
-- **@Repository Annotation**: Exception translation
+Generics provide type safety in repositories and service classes.
 
-### 3.3 Basic CRUD Operations
-- **CrudRepository Methods**: save(), findById(), findAll(), delete()
-- **JpaRepository Methods**: saveAndFlush(), deleteInBatch()
-- **Batch Operations**: saveAll(), deleteAll()
-- **Existence Checks**: existsById(), count()
+```java
+// Generic repository interface
+public interface BaseRepository<T, ID> extends JpaRepository<T, ID> {
+    
+    // Generic method for finding by any field
+    <F> Optional<T> findByField(String fieldName, F fieldValue);
+    
+    // Generic method for batch operations
+    <S extends T> List<S> saveAllAndReturn(Iterable<S> entities);
+}
 
-### 3.4 Query Methods
-- **Method Name Queries**: findBy, findAllBy conventions
-- **Query Keywords**: And, Or, Between, LessThan, GreaterThan, Like, In, IsNull
-- **Property Expressions**: Nested property access
-- **Limiting Results**: First, Top keywords
-- **Sorting**: OrderBy in method names
-- **Case Sensitivity**: IgnoreCase keyword
+// Generic service class
+@Service
+public abstract class BaseService<T, ID> {
+    
+    protected final BaseRepository<T, ID> repository;
+    
+    public BaseService(BaseRepository<T, ID> repository) {
+        this.repository = repository;
+    }
+    
+    public Optional<T> findById(ID id) {
+        return repository.findById(id);
+    }
+    
+    public T save(T entity) {
+        return repository.save(entity);
+    }
+    
+    public List<T> saveAll(List<T> entities) {
+        return repository.saveAll(entities);
+    }
+    
+    // Abstract method for subclasses to implement
+    public abstract List<T> findBySearchCriteria(String criteria);
+}
 
-### 3.5 Custom Queries
-- **@Query Annotation**: JPQL queries
-- **Native Queries**: @Query(nativeQuery = true)
-- **Named Queries**: @NamedQuery annotation
-- **Parameter Binding**: @Param annotation, positional parameters
-- **SpEL Expressions**: Using SpEL in queries
+// Concrete implementation with specific types
+@Service
+public class UserService extends BaseService<User, Long> {
+    
+    private final UserRepository userRepository;
+    
+    public UserService(UserRepository userRepository) {
+        super(userRepository);
+        this.userRepository = userRepository;
+    }
+    
+    @Override
+    public List<User> findBySearchCriteria(String criteria) {
+        return userRepository.findByFirstNameContainingOrLastNameContaining(criteria, criteria);
+    }
+    
+    // Wildcards example
+    public List<? extends User> findActiveUsers() {
+        return userRepository.findByActiveTrue();
+    }
+    
+    // Bounded wildcards
+    public <T extends User> void updateUsers(List<T> users) {
+        repository.saveAll(users);
+    }
+}
+```
 
-## Phase 4: Advanced Entity Mapping (Week 8-10)
+### Annotations
 
-### 4.1 Entity Relationships
-- **@OneToOne**: Bidirectional and unidirectional mapping
-- **@OneToMany**: Collection mapping strategies
-- **@ManyToOne**: Many-to-one relationships
-- **@ManyToMany**: Join table strategies
-- **@JoinColumn**: Foreign key customization
-- **@JoinTable**: Join table customization
-- **Cascade Types**: PERSIST, MERGE, REMOVE, REFRESH, DETACH, ALL
-- **Fetch Types**: EAGER vs LAZY loading strategies
-- **Orphan Removal**: Managing orphaned entities
+Annotations drive Spring Data JPA's behavior and configuration.
 
-### 4.2 Inheritance Mapping
-- **@Inheritance**: Inheritance strategies
-- **SINGLE_TABLE**: Single table inheritance
-- **TABLE_PER_CLASS**: Table per concrete class
-- **JOINED**: Joined table inheritance
-- **@DiscriminatorColumn**: Discriminator strategies
-- **@DiscriminatorValue**: Entity discrimination
-- **@MappedSuperclass**: Common mappings
+```java
+// Custom validation annotation
+@Target({ElementType.FIELD})
+@Retention(RetentionPolicy.RUNTIME)
+@Constraint(validatedBy = EmailValidator.class)
+public @interface ValidEmail {
+    String message() default "Invalid email format";
+    Class<?>[] groups() default {};
+    Class<? extends Payload>[] payload() default {};
+}
 
-### 4.3 Composite Keys and Embedded Objects
-- **@EmbeddedId**: Composite primary keys
-- **@IdClass**: Alternative composite key approach
-- **@Embeddable**: Value objects
-- **@Embedded**: Embedding value objects
-- **@AttributeOverride**: Overriding embedded attributes
+// Validator implementation
+public class EmailValidator implements ConstraintValidator<ValidEmail, String> {
+    
+    private static final String EMAIL_PATTERN = 
+        "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@" +
+        "(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
+    
+    @Override
+    public boolean isValid(String email, ConstraintValidatorContext context) {
+        return email != null && email.matches(EMAIL_PATTERN);
+    }
+}
 
-### 4.4 Advanced Mapping Features
-- **@SecondaryTable**: Multiple table mapping
-- **@Formula**: Calculated properties
-- **@Where**: Entity-level filtering
-- **@Filter**: Dynamic filtering
-- **@SQLInsert, @SQLUpdate, @SQLDelete**: Custom SQL
-- **@Converter**: Attribute converters
-- **@EntityListeners**: Entity lifecycle callbacks
+// Using annotations in entity
+@Entity
+@Table(name = "customers")
+@EntityListeners(AuditingEntityListener.class)
+public class Customer {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "customer_seq")
+    @SequenceGenerator(name = "customer_seq", sequenceName = "customer_sequence", allocationSize = 1)
+    private Long id;
+    
+    @ValidEmail
+    @Column(unique = true, nullable = false)
+    private String email;
+    
+    @NotBlank(message = "First name is required")
+    @Size(min = 2, max = 50, message = "First name must be between 2 and 50 characters")
+    private String firstName;
+    
+    @NotBlank(message = "Last name is required")
+    @Size(min = 2, max = 50, message = "Last name must be between 2 and 50 characters")  
+    private String lastName;
+    
+    @Past(message = "Birth date must be in the past")
+    private LocalDate birthDate;
+    
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+    
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+    
+    @CreatedBy
+    @Column(updatable = false)
+    private String createdBy;
+    
+    @LastModifiedBy
+    private String lastModifiedBy;
+}
+```
 
-## Phase 5: Query Mastery (Week 11-13)
+### Reflection API
 
-### 5.1 JPQL (Java Persistence Query Language)
-- **JPQL Syntax**: Basic query structure
-- **SELECT Statements**: Entity and scalar queries
-- **FROM Clause**: Entity and join specifications
-- **WHERE Clause**: Conditional expressions
-- **JOIN Operations**: INNER JOIN, LEFT JOIN, FETCH JOIN
-- **Subqueries**: Correlated and non-correlated
-- **Aggregate Functions**: COUNT, SUM, AVG, MIN, MAX
-- **GROUP BY and HAVING**: Grouping and filtering
-- **ORDER BY**: Sorting results
+Understanding reflection helps in debugging and creating dynamic queries.
 
-### 5.2 Criteria API
-- **CriteriaBuilder**: Building type-safe queries
-- **CriteriaQuery**: Query structure
-- **Root Interface**: Entity root
-- **Predicate Building**: Complex conditions
-- **Dynamic Queries**: Runtime query construction
-- **Metamodel API**: Type-safe property references
-- **Joins in Criteria API**: Type-safe joins
-- **Subqueries in Criteria API**: Correlated subqueries
+```java
+@Component
+public class EntityInspector {
+    
+    // Inspect entity annotations
+    public void inspectEntity(Class<?> entityClass) {
+        System.out.println("Inspecting entity: " + entityClass.getSimpleName());
+        
+        // Check if class has @Entity annotation
+        if (entityClass.isAnnotationPresent(Entity.class)) {
+            Entity entityAnnotation = entityClass.getAnnotation(Entity.class);
+            System.out.println("Entity name: " + entityAnnotation.name());
+        }
+        
+        // Check for @Table annotation
+        if (entityClass.isAnnotationPresent(Table.class)) {
+            Table tableAnnotation = entityClass.getAnnotation(Table.class);
+            System.out.println("Table name: " + tableAnnotation.name());
+        }
+        
+        // Inspect fields
+        Field[] fields = entityClass.getDeclaredFields();
+        for (Field field : fields) {
+            System.out.println("Field: " + field.getName() + " - Type: " + field.getType().getSimpleName());
+            
+            if (field.isAnnotationPresent(Id.class)) {
+                System.out.println("  -> Primary Key");
+            }
+            
+            if (field.isAnnotationPresent(Column.class)) {
+                Column column = field.getAnnotation(Column.class);
+                System.out.println("  -> Column: " + column.name() + 
+                                 ", Nullable: " + column.nullable() +
+                                 ", Unique: " + column.unique());
+            }
+        }
+    }
+    
+    // Dynamic field access
+    public Object getFieldValue(Object entity, String fieldName) {
+        try {
+            Field field = entity.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field.get(entity);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get field value", e);
+        }
+    }
+    
+    // Dynamic field setting
+    public void setFieldValue(Object entity, String fieldName, Object value) {
+        try {
+            Field field = entity.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(entity, value);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set field value", e);
+        }
+    }
+}
 
-### 5.3 Query By Example (QBE)
-- **Example Interface**: Creating examples
-- **ExampleMatcher**: Matching strategies
-- **Property Matching**: String matching options
-- **Null Handling**: Null property strategies
-- **Nested Properties**: Complex object matching
+// Usage example
+@Service
+public class DynamicQueryService {
+    
+    private final EntityInspector entityInspector;
+    
+    public DynamicQueryService(EntityInspector entityInspector) {
+        this.entityInspector = entityInspector;
+    }
+    
+    public void analyzeEntity(Object entity) {
+        Class<?> entityClass = entity.getClass();
+        entityInspector.inspectEntity(entityClass);
+        
+        // Get all field values dynamically
+        Field[] fields = entityClass.getDeclaredFields();
+        for (Field field : fields) {
+            Object value = entityInspector.getFieldValue(entity, field.getName());
+            System.out.println(field.getName() + " = " + value);
+        }
+    }
+}
+```
 
-### 5.4 Specifications
-- **Specification Interface**: Reusable query logic
-- **Combining Specifications**: and(), or(), not() operations
-- **JpaSpecificationExecutor**: Repository integration
-- **Dynamic Filtering**: Runtime query building
-- **Specification Composition**: Building complex queries
+### Lambda Expressions & Stream API
 
-## Phase 6: Pagination, Sorting & Performance (Week 14-15)
+Modern Java features that enhance data processing in JPA applications.
 
-### 6.1 Pagination and Sorting
-- **Pageable Interface**: Pagination parameters
-- **Sort Class**: Sorting specifications
-- **Page Interface**: Pagination results
-- **PageRequest**: Creating pageable requests
-- **Custom Sorting**: Multiple property sorting
-- **Repository Pagination**: PagingAndSortingRepository methods
+```java
+@Service
+public class UserAnalyticsService {
+    
+    private final UserRepository userRepository;
+    
+    public UserAnalyticsService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+    
+    // Lambda expressions with method references
+    public List<String> getUserEmails() {
+        return userRepository.findAll()
+            .stream()
+            .map(User::getEmail)  // Method reference
+            .collect(Collectors.toList());
+    }
+    
+    // Complex stream operations
+    public Map<String, Long> getUserCountByDomain() {
+        return userRepository.findAll()
+            .stream()
+            .filter(user -> user.getEmail() != null)
+            .map(user -> user.getEmail().substring(user.getEmail().indexOf('@') + 1))
+            .collect(Collectors.groupingBy(
+                Function.identity(),
+                Collectors.counting()
+            ));
+    }
+    
+    // Parallel processing for large datasets
+    public List<UserDto> getActiveUsersDto() {
+        return userRepository.findByActiveTrue()
+            .parallelStream()
+            .map(this::convertToDto)
+            .sorted(Comparator.comparing(UserDto::getLastName))
+            .collect(Collectors.toList());
+    }
+    
+    // Custom collectors
+    public String generateUserReport() {
+        return userRepository.findAll()
+            .stream()
+            .collect(Collector.of(
+                StringBuilder::new,
+                (sb, user) -> sb.append(user.getFirstName())
+                               .append(" ")
+                               .append(user.getLastName())
+                               .append("\n"),
+                StringBuilder::append,
+                StringBuilder::toString
+            ));
+    }
+    
+    // Optional handling with streams
+    public Optional<User> findUserWithHighestId() {
+        return userRepository.findAll()
+            .stream()
+            .max(Comparator.comparing(User::getId));
+    }
+    
+    // Functional interface usage
+    public List<User> filterUsers(Predicate<User> condition) {
+        return userRepository.findAll()
+            .stream()
+            .filter(condition)
+            .collect(Collectors.toList());
+    }
+    
+    private UserDto convertToDto(User user) {
+        return UserDto.builder()
+            .id(user.getId())
+            .email(user.getEmail())
+            .firstName(user.getFirstName())
+            .lastName(user.getLastName())
+            .build();
+    }
+}
 
-### 6.2 Performance Optimization
-- **N+1 Problem**: Understanding and solutions
-- **Fetch Joins**: Eager fetching strategies
-- **Entity Graphs**: @EntityGraph annotation
-- **Batch Fetching**: @BatchSize annotation
-- **Query Optimization**: JPQL best practices
-- **Connection Pooling**: HikariCP configuration
-- **Second-Level Cache**: Hibernate caching
+// Usage examples
+@RestController
+public class UserController {
+    
+    private final UserAnalyticsService analyticsService;
+    
+    public UserController(UserAnalyticsService analyticsService) {
+        this.analyticsService = analyticsService;
+    }
+    
+    @GetMapping("/users/analytics/domains")
+    public Map<String, Long> getUsersByDomain() {
+        return analyticsService.getUserCountByDomain();
+    }
+    
+    @GetMapping("/users/filter")
+    public List<User> getFilteredUsers() {
+        // Using lambda expressions as predicates
+        return analyticsService.filterUsers(
+            user -> user.getEmail().endsWith("@company.com") &&
+                   user.getFirstName().startsWith("J")
+        );
+    }
+}
+```
 
-### 6.3 Lazy Loading Strategies
-- **Lazy Loading Configuration**: FetchType.LAZY
-- **Proxy Objects**: Understanding JPA proxies
-- **LazyInitializationException**: Common issues and solutions
-- **Open Session in View**: Pattern pros and cons
-- **DTO Projections**: Avoiding entity loading
+### Exception Handling
 
-## Phase 7: Transactions & Concurrency (Week 16-17)
+Proper exception handling is crucial for robust JPA applications.
 
-### 7.1 Transaction Management
-- **@Transactional Annotation**: Method and class level
-- **Transaction Propagation**: REQUIRED, REQUIRES_NEW, NESTED, etc.
-- **Transaction Isolation**: READ_COMMITTED, REPEATABLE_READ, etc.
-- **Rollback Rules**: Exception-based rollback
-- **Programmatic Transactions**: TransactionTemplate
-- **Transaction Synchronization**: @TransactionalEventListener
+```java
+// Custom exceptions
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class EntityNotFoundException extends RuntimeException {
+    
+    public EntityNotFoundException(String entityName, Object id) {
+        super(String.format("%s not found with id: %s", entityName, id));
+    }
+    
+    public EntityNotFoundException(String entityName, String field, Object value) {
+        super(String.format("%s not found with %s: %s", entityName, field, value));
+    }
+}
 
-### 7.2 Concurrency Control
-- **Optimistic Locking**: @Version annotation
-- **Pessimistic Locking**: LockModeType
-- **Lock Timeouts**: Handling lock conflicts
-- **Deadlock Detection**: Database deadlock handling
-- **Versioning Strategies**: Timestamp vs numeric versions
+@ResponseStatus(HttpStatus.BAD_REQUEST)
+public class InvalidDataException extends RuntimeException {
+    
+    public InvalidDataException(String message) {
+        super(message);
+    }
+    
+    public InvalidDataException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
 
-### 7.3 Batch Processing
-- **Batch Inserts**: Hibernate batch processing
-- **Batch Updates**: Bulk update operations
-- **Batch Configuration**: hibernate.jdbc.batch_size
-- **Batch vs Single Operations**: Performance considerations
-- **StatelessSession**: For large data processing
+// Exception handling in service layer
+@Service
+@Transactional
+public class UserService {
+    
+    private final UserRepository userRepository;
+    private final Logger logger = LoggerFactory.getLogger(UserService.class);
+    
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+    
+    public User findById(Long id) {
+        return userRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("User", id));
+    }
+    
+    public User findByEmail(String email) {
+        try {
+            return userRepository.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("User", "email", email));
+        } catch (DataAccessException e) {
+            logger.error("Database error while finding user by email: {}", email, e);
+            throw new ServiceException("Failed to retrieve user", e);
+        }
+    }
+    
+    public User createUser(CreateUserRequest request) {
+        try {
+            // Validate request
+            validateCreateUserRequest(request);
+            
+            // Check if user already exists
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new InvalidDataException("User with email already exists: " + request.getEmail());
+            }
+            
+            User user = new User(request.getEmail(), request.getFirstName(), request.getLastName());
+            return userRepository.save(user);
+            
+        } catch (DataIntegrityViolationException e) {
+            logger.error("Data integrity violation while creating user", e);
+            throw new InvalidDataException("Invalid user data", e);
+        } catch (Exception e) {
+            logger.error("Unexpected error while creating user", e);
+            throw new ServiceException("Failed to create user", e);
+        }
+    }
+    
+    private void validateCreateUserRequest(CreateUserRequest request) {
+        List<String> errors = new ArrayList<>();
+        
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            errors.add("Email is required");
+        }
+        
+        if (request.getFirstName() == null || request.getFirstName().trim().isEmpty()) {
+            errors.add("First name is required");
+        }
+        
+        if (request.getLastName() == null || request.getLastName().trim().isEmpty()) {
+            errors.add("Last name is required");
+        }
+        
+        if (!errors.isEmpty()) {
+            throw new InvalidDataException("Validation failed: " + String.join(", ", errors));
+        }
+    }
+}
 
-## Phase 8: Advanced Features (Week 18-19)
+// Global exception handler
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    
+    private final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleEntityNotFound(EntityNotFoundException e) {
+        ErrorResponse error = new ErrorResponse("ENTITY_NOT_FOUND", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+    
+    @ExceptionHandler(InvalidDataException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidData(InvalidDataException e) {
+        ErrorResponse error = new ErrorResponse("INVALID_DATA", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+    
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        logger.error("Data integrity violation", e);
+        ErrorResponse error = new ErrorResponse("DATA_INTEGRITY_ERROR", "Data integrity constraint violated");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+    
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException e) {
+        String message = e.getConstraintViolations()
+            .stream()
+            .map(ConstraintViolation::getMessage)
+            .collect(Collectors.joining(", "));
+        
+        ErrorResponse error = new ErrorResponse("VALIDATION_ERROR", message);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+    
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGeneral(Exception e) {
+        logger.error("Unexpected error", e);
+        ErrorResponse error = new ErrorResponse("INTERNAL_ERROR", "An unexpected error occurred");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+}
 
-### 8.1 Custom Repository Implementation
-- **Custom Repository Interfaces**: Defining custom methods
-- **Repository Implementation**: Implementing custom logic
-- **Repository Fragment**: Composing repositories
-- **Accessing EntityManager**: In custom implementations
-- **Integration with Spring Data**: Combining auto and custom
+// Error response DTO
+public class ErrorResponse {
+    private String code;
+    private String message;
+    private LocalDateTime timestamp;
+    
+    public ErrorResponse(String code, String message) {
+        this.code = code;
+        this.message = message;
+        this.timestamp = LocalDateTime.now();
+    }
+    
+    // Getters and setters
+}
+```
 
-### 8.2 Auditing
-- **@CreatedDate and @LastModifiedDate**: Temporal auditing
-- **@CreatedBy and @LastModifiedBy**: User auditing
-- **@EnableJpaAuditing**: Enabling audit support
-- **AuditorAware Interface**: Current user detection
-- **Custom Audit Fields**: Domain-specific auditing
+## Key Takeaways for Phase 1
 
-### 8.3 Events and Callbacks
-- **JPA Callbacks**: @PrePersist, @PostPersist, @PreUpdate, etc.
-- **EntityListeners**: Centralized callback logic
-- **Spring Data Events**: BeforeSaveEvent, AfterSaveEvent
-- **ApplicationEventPublisher**: Publishing custom events
-- **Event Handling**: @EventListener annotation
+1. **OOP Principles**: Essential for entity design and relationship mapping
+2. **Collections**: Critical for handling entity relationships and query results
+3. **Generics**: Provide type safety in repositories and services
+4. **Annotations**: Drive JPA behavior and validation
+5. **Reflection**: Useful for dynamic operations and debugging
+6. **Lambda/Streams**: Modern approach to data processing
+7. **Exception Handling**: Crucial for robust application behavior
 
-### 8.4 Projections
-- **Interface Projections**: Closed and open projections
-- **Class-based Projections**: DTO projections
-- **Dynamic Projections**: Runtime projection selection
-- **@Value Annotation**: SpEL in projections
-- **Nested Projections**: Complex object projections
+## Practice Exercises
 
-## Phase 9: Enterprise Patterns (Week 20-21)
+1. Create a simple entity hierarchy with inheritance
+2. Implement a generic service class with type parameters
+3. Build custom validation annotations
+4. Use streams to process entity collections
+5. Implement proper exception handling patterns
 
-### 9.1 Multi-tenancy
-- **Schema per Tenant**: Database isolation
-- **Shared Schema**: Row-level security
-- **Database per Tenant**: Complete isolation
-- **Tenant Context**: Managing current tenant
-- **Dynamic DataSource**: Runtime database switching
+## Next Steps
 
-### 9.2 Multiple Databases
-- **Multiple DataSources**: Configuration strategies
-- **@Primary DataSource**: Default configuration
-- **@Qualifier**: Specifying data sources
-- **JpaRepository Configuration**: Per-database repositories
-- **Transaction Management**: Cross-database transactions
+Once you've mastered these foundational concepts with hands-on practice, we'll move to Phase 2: JPA Fundamentals, where we'll dive into:
+- JPA Specification Understanding
+- Entity Mapping Basics
+- Entity Manager and Persistence Context
 
-### 9.3 Read/Write Splitting
-- **Master/Slave Configuration**: Read replica setup
-- **@Transactional(readOnly = true)**: Read-only optimization
-- **Dynamic DataSource Routing**: AbstractRoutingDataSource
-- **Connection Pool Separation**: Separate pools for read/write
-
-## Phase 10: Testing (Week 22-23)
-
-### 10.1 Unit Testing
-- **@DataJpaTest**: JPA slice testing
-- **TestEntityManager**: Test-specific entity manager
-- **@MockBean**: Mocking repository dependencies
-- **In-Memory Databases**: H2, HSQLDB for testing
-- **Test Data Management**: @Sql, @SqlGroup annotations
-
-### 10.2 Integration Testing
-- **@SpringBootTest**: Full application context
-- **@Testcontainers**: Docker-based database testing
-- **@Rollback**: Transaction rollback in tests
-- **Test Profiles**: Separate configurations
-- **Database Migration Testing**: Flyway/Liquibase integration
-
-### 10.3 Repository Testing
-- **Repository Method Testing**: Custom query validation
-- **Performance Testing**: Query performance assertions
-- **Data Integrity Testing**: Constraint validation
-- **Transaction Testing**: Rollback scenarios
-
-## Phase 11: Production Considerations (Week 24)
-
-### 11.1 Monitoring and Metrics
-- **JPA Metrics**: Hibernate statistics
-- **Spring Boot Actuator**: Database health checks
-- **Query Logging**: SQL statement logging
-- **Performance Monitoring**: Slow query detection
-- **Connection Pool Monitoring**: HikariCP metrics
-
-### 11.2 Database Migration
-- **Flyway Integration**: Version-controlled migrations
-- **Liquibase Integration**: XML/YAML migrations
-- **JPA DDL Generation**: hibernate.hbm2ddl.auto
-- **Production Migration Strategies**: Zero-downtime deployments
-
-### 11.3 Security Considerations
-- **SQL Injection Prevention**: Parameterized queries
-- **Database Credentials**: Secure configuration management
-- **Row-Level Security**: Database-level security
-- **Audit Logging**: Security event tracking
-- **Encryption**: Database field encryption
-
-## Practical Projects for Each Phase
-
-### Project 1: Basic Blog System (Phases 1-3)
-- User, Post, Comment entities
-- Basic CRUD operations
-- Simple queries
-
-### Project 2: E-commerce System (Phases 4-6)
-- Product catalog with categories
-- Order management with relationships
-- Pagination and search functionality
-
-### Project 3: Social Media Platform (Phases 7-9)
-- User relationships (following/followers)
-- Post feed with optimization
-- Real-time features with transactions
-
-### Project 4: Enterprise Application (Phases 10-11)
-- Multi-tenant SaaS application
-- Comprehensive testing suite
-- Production-ready monitoring
-
-## Study Resources and Best Practices
-
-### Essential Reading
-- Spring Data JPA Official Documentation
-- Hibernate User Guide
-- "Java Persistence with Hibernate" by Christian Bauer
-- "Pro JPA 2" by Mike Keith and Merrick Schincariol
-
-### Practice Recommendations
-- Build each concept with hands-on examples
-- Create unit tests for every feature learned
-- Use different databases (H2, PostgreSQL, MySQL)
-- Implement real-world scenarios
-- Focus on performance implications
-- Practice debugging JPA issues
-
-### Development Environment Setup
-- IDE: IntelliJ IDEA or Eclipse with JPA plugins
-- Database: PostgreSQL for development, H2 for testing
-- Tools: DBeaver for database management
-- Profiling: JProfiler or VisualVM for performance analysis
-
-This roadmap provides a comprehensive path to mastering Spring Data JPA. Each phase builds upon the previous ones, ensuring a solid understanding of both theoretical concepts and practical implementation. The timeline can be adjusted based on your current knowledge level and available study time.
+Would you like me to continue with Phase 2, or do you want to practice these Phase 1 concepts first with specific examples or exercises?
